@@ -99,10 +99,7 @@ def main():
         path_exclusions=path_exclusions, allow=allow)
     if args.cleanup:
         clean_up(output)
-    if output["foundIssues"]:
-        sys.exit(1)
-    else:
-        sys.exit(0)
+    sys.exit(1 if output["found_issues"] else 0)
 
 
 def read_pattern(r):
@@ -255,26 +252,26 @@ def diff_worker(
         for key in allow:
             printableDiff = allow[key].sub('', printableDiff)
         commit_time = datetime.datetime.fromtimestamp(prev_commit.committed_date).strftime('%Y-%m-%d %H:%M:%S')
-        foundIssues = []
+        found_issues = []
         if do_entropy:
             entropicDiff = find_entropy(printableDiff, commit_time, branch_name, prev_commit, blob)
             if entropicDiff:
-                foundIssues.append(entropicDiff)
+                found_issues.append(entropicDiff)
         if do_regex:
-            foundIssues += regex_check(printableDiff, commit_time, branch_name, prev_commit, blob, custom_regexes)
+            found_issues += regex_check(printableDiff, commit_time, branch_name, prev_commit, blob, custom_regexes)
         if not suppress_output:
-            for foundIssue in foundIssues:
+            for foundIssue in found_issues:
                 print_results(print_json, foundIssue)
-        issues += foundIssues
+        issues += found_issues
     return issues
 
 
-def handle_results(output, output_dir, foundIssues):
-    for foundIssue in foundIssues:
+def handle_results(output, output_dir, found_issues):
+    for foundIssue in found_issues:
         result_path = os.path.join(output_dir, str(uuid.uuid4()))
         with open(result_path, "w+") as result_file:
             result_file.write(json.dumps(foundIssue))
-        output["foundIssues"].append(result_path)
+        output["found_issues"].append(result_path)
     return output
 
 
@@ -306,7 +303,7 @@ def find_strings(
         git_url, since_commit=None, max_depth=1000000, print_json=False, do_regex=False, suppress_output=True,
         custom_regexes=None, branch=None, repo_path=None, path_inclusions=None, path_exclusions=None, allow=None):
     curr_commit = None
-    path_exclusions = path_exclusions or None
+    path_exclusions = path_exclusions or {}
     custom_regexes = custom_regexes or {}
     allow = allow or {}
     output = {"found_issues": []}
@@ -337,8 +334,9 @@ def find_strings(
             # avoid searching the same diffs
             already_searched.add(diff_hash)
             found_issues = diff_worker(
-                diff, branch_name, custom_regexes, do_regex, print_json,
-                suppress_output, path_inclusions, path_exclusions, allow)
+                diff=diff, prev_commit=prev_commit, branch_name=branch_name, custom_regexes=custom_regexes,
+                do_entropy=True, do_regex=do_regex, print_json=print_json, suppress_output=suppress_output,
+                path_inclusions=path_inclusions, path_exclusions=path_exclusions, allow=allow)
             output = handle_results(output, output_dir, found_issues)
             prev_commit = curr_commit
         # Check if since_commit was used to check which diff should be grabbed
@@ -350,7 +348,7 @@ def find_strings(
         else:
             diff = prev_commit.diff(curr_commit, create_patch=True)
         found_issues = diff_worker(
-            diff, branch_name, custom_regexes, do_regex, print_json,
+            diff, prev_commit, branch_name, custom_regexes, True, do_regex, print_json,
             suppress_output, path_inclusions, path_exclusions, allow)
         output = handle_results(output, output_dir, found_issues)
     output["project_path"] = project_path

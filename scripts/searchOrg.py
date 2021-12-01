@@ -48,7 +48,7 @@ def get_org_repos(organization_name, page) -> str:
                 item["html_url"],
                 do_regex=True, custom_regexes=rules,
                 max_depth=100000)
-            for issue in results["foundIssues"]:
+            for issue in results["found_issues"]:
                 d = loads(open(issue).read())
                 d['github_url'] = "{}/blob/{}/{}".format(item["html_url"], d['commitHash'], d['path'])
                 d['github_commit_url'] = "{}/commit/{}".format(item["html_url"], d['commitHash'])
